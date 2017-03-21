@@ -243,7 +243,9 @@ class ThemingControlpanel(BrowserView):
                 try:
                     themeData = extractThemeInfo(themeZip, checkRules=False)
                 except (ValueError, KeyError,), e:
-                    logger.warn(str(e))
+                    logger.info("themeZip function()")
+		    logger.warn(str(e))
+		    
                     self.errors['themeArchive'] = _(
                         'error_no_rules_file',
                         u"The uploaded file does not contain a valid theme "
@@ -329,6 +331,8 @@ class ThemingControlpanel(BrowserView):
                     _(u"There were errors"),
                     "error"
                 )
+		logger.info("to log: There were errors")
+		logger.findcaller()
 
                 self.renderOverlay('upload')
                 return True
@@ -343,11 +347,12 @@ class ThemingControlpanel(BrowserView):
 
             if not title:
                 self.errors['title'] = _(u"Title is required")
-
+		
                 IStatusMessage(self.request).add(
                     _(u"There were errors"),
                     'error'
                 )
+		logger.info("CreateTheme function() title required error")
 
                 self.renderOverlay('new-theme')
                 return True
