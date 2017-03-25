@@ -17,6 +17,7 @@ from plone.app.theming.utils import getZODBThemes
 from plone.app.theming.utils import theming_policy
 from plone.memoize.instance import memoize
 from plone.registry.interfaces import IRegistry
+from plone.resource.manifest import MANIFEST_FILENAME
 from plone.resource.utils import queryResourceDirectory
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.interfaces import ILinkSchema
@@ -298,6 +299,29 @@ class ThemingControlpanel(BrowserView):
                                     u"your theme, but no index.html file "
                                     u"found. Update rules.xml to reference "
                                     u"the current theme file."
+                                ),
+                                'warning',
+                            )
+		    if themeData.manifest==u"/++{0:s}++{1:s}/{2:s}".format(
+                        THEME_RESOURCE_NAME,
+                        themeData.__name__,
+                        MANIFEST_FILENAME,
+                    ) and not themeDirectory.isFile(MANIFEST_FILENAME):
+                        templateThemeDirectory = queryResourceDirectory(
+                            THEME_RESOURCE_NAME,
+                            TEMPLATE_THEME
+                        )
+                        themeDirectory.writeFile(
+                            MANIFEST_FILENAME,
+                            templateThemeDirectory.readFile(MANIFEST_FILENAME)
+                        )
+			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
+                            IStatusMessage(self.request).add(
+                                _(
+                                    u"A boilerplate manifest.cfg was added to "
+                                    u"your theme "
+                                    u"Update manifest.cfg to reference "
+                                    u"the bandle files of theme current."
                                 ),
                                 'warning',
                             )
