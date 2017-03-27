@@ -302,11 +302,7 @@ class ThemingControlpanel(BrowserView):
                                 ),
                                 'warning',
                             )
-		    if themeData.manifest==u"/++{0:s}++{1:s}/{2:s}".format(
-                        THEME_RESOURCE_NAME,
-                        themeData.__name__,
-                        MANIFEST_FILENAME,
-                    ) and not themeDirectory.isFile(MANIFEST_FILENAME):
+		    if not themeDirectory.isFile(MANIFEST_FILENAME):
                         templateThemeDirectory = queryResourceDirectory(
                             THEME_RESOURCE_NAME,
                             TEMPLATE_THEME
