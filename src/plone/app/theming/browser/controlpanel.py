@@ -313,13 +313,15 @@ class ThemingControlpanel(BrowserView):
 				'preview' :'preview.png',
 				'rules' : 'rulex.xml'
 				}
-			templateThemeDirectory = '[theme]'			
-			for key, value in data.items():     
-				templateThemeDirectory =+'\n'+ key + "=" + value 
-						
+			template='[theme] \n'  
+			
+			for key in data:  
+				line=key+":"+data[key]  
+				template=template+line+'\n'  
+									
                         themeDirectory.writeFile(
                             MANIFEST_FILENAME,
-                            templateThemeDirectory
+                            template
                         )
 			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
                             IStatusMessage(self.request).add(
