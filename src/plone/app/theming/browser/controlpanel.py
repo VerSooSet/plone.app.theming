@@ -303,13 +303,23 @@ class ThemingControlpanel(BrowserView):
                                 'warning',
                             )
 		    if not themeDirectory.isFile(MANIFEST_FILENAME):
-                        templateThemeDirectory = queryResourceDirectory(
-                            THEME_RESOURCE_NAME,
-                            TEMPLATE_THEME
-                        )
+			
+                        data = {
+				'title' : 'My theme',
+				'prefix' : '/some/ prefix',
+				'doctype': '<!DOCTYPE html>',
+				'enabled-bundles': 'mybundle',
+				'disabled-bundles' : 'plone', 
+				'preview' :'preview.png',
+				'rules' : 'rulex.xml'
+				}
+			templateThemeDirectory = '[theme]'			
+			for key, value in data.items():     
+				templateThemeDirectory =+'\n'+ key + "=" + value 
+						
                         themeDirectory.writeFile(
                             MANIFEST_FILENAME,
-                            templateThemeDirectory.readFile(MANIFEST_FILENAME)
+                            templateThemeDirectory
                         )
 			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
                             IStatusMessage(self.request).add(
