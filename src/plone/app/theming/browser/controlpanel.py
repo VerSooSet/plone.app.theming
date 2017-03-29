@@ -311,7 +311,7 @@ class ThemingControlpanel(BrowserView):
 				'enabled-bundles': 'mybundle',
 				'disabled-bundles' : 'plone', 
 				'preview' :'preview.png',
-				'rules' : 'rulex.xml'
+				'rules' : 'rules.xml'
 				}
 			template='[theme] \n'  
 			
