@@ -303,20 +303,31 @@ class ThemingControlpanel(BrowserView):
                                 'warning',
                             )
 		    if not themeDirectory.isFile(MANIFEST_FILENAME):
+
+			themePrefix="/++{0:s}++{1:s}".format(
+                        	THEME_RESOURCE_NAME,
+                        	themeData.__name__
+                        	)
 			
                         data = {
-				'title' : 'My theme',
-				'prefix' : '/some/ prefix',
-				'doctype': '<!DOCTYPE html>',
-				'enabled-bundles': 'mybundle',
-				'disabled-bundles' : 'plone', 
+				'title' : themeData.__name__,
+				'description': 'theme description',
 				'preview' :'preview.png',
-				'rules' : 'rules.xml'
+				'rules' : themePrefix + '/rules.xml',
+				'prefix' : themePrefix,
+				'doctype': '<!DOCTYPE html>',
+				'enabled-bundles': '',
+				'disabled-bundles': '',
+				'development-css' : '',
+				'production-css': '',
+				'tinymce-content-css': '',
+				'development-js': '',
+				'production-js': '' 
 				}
 			template='[theme] \n'  
 			
 			for key in data:  
-				line=key+":"+data[key]  
+				line=key+"="+data[key]  
 				template=template+line+'\n'  
 									
                         themeDirectory.writeFile(
