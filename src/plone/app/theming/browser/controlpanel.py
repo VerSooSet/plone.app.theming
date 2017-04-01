@@ -17,6 +17,7 @@ from plone.app.theming.utils import getZODBThemes
 from plone.app.theming.utils import theming_policy
 from plone.memoize.instance import memoize
 from plone.registry.interfaces import IRegistry
+from plone.resource.manifest import MANIFEST_FILENAME
 from plone.resource.utils import queryResourceDirectory
 from Products.CMFCore.utils import getToolByName
 from Products.CMFPlone.interfaces import ILinkSchema
@@ -225,7 +226,7 @@ class ThemingControlpanel(BrowserView):
             enableNewTheme = form.get('enableNewTheme', False)
             replaceExisting = form.get('replaceExisting', False)
             themeArchive = form.get('themeArchive', None)
-
+	    
             themeZip = None
             performImport = False
 
@@ -239,7 +240,7 @@ class ThemingControlpanel(BrowserView):
                 )
 
             if themeZip:
-
+			
                 try:
                     themeData = extractThemeInfo(themeZip, checkRules=False)
                 except (ValueError, KeyError,), e:
@@ -254,24 +255,57 @@ class ThemingControlpanel(BrowserView):
                     themeContainer = getOrCreatePersistentResourceDirectory()
                     themeExists = themeData.__name__ in themeContainer
 
-                    if themeExists:
-                        if not replaceExisting:
-                            self.errors['themeArchive'] = _(
-                                'error_already_installed',
-                                u"This theme is already installed. Select "
-                                u"'Replace existing theme' and re-upload to "
-                                u"replace it."
-                            )
-                        else:
+                if themeExists:
+                        
+                        if replaceExisting:
                             del themeContainer[themeData.__name__]
                             performImport = True
-                    else:
-                        performImport = True
 
-            if performImport:
-                themeContainer.importZip(themeZip)
+			"""Problem is theme resources folder matched with the same folder inside themeZip. 
+			That fix isn't truly right. To be carefully with system disk may made only 
+		        one rename when first copy upload yet. 
+		        Like as 'theme_name --> 0-them_name' and 'counter-them_name' for next copyes.
+			   
+			To do that needs override method importZip of the themeContainer to set on 
+			a new home directory name. It is more code raising issue.
 
-                themeDirectory = queryResourceDirectory(
+			it works now.
+
+			More Info: 
+			module zipfile-- https://docs.python.org/2/library/zipfile.html
+			importZip at egg-- plone.resources.directory
+			"""
+			
+		     	try:
+			    tempName='temp' #FIXME current time will have there.
+			    themeContainer.rename(themeData.__name__,tempName) 
+			    themeData.__name__ = '1' + '-' + themeData.__name__
+			
+			    existCounter = 1
+			
+			    while (themeData.__name__ in themeContainer):
+				themeData.__name__ = str(existCounter) + themeData.__name__[1:] 
+				existCounter = existCounter + 1
+				if existCounter==9: 
+				   break
+			    themeContainer.importZip(themeZip)
+			    themeContainer.rename(themeData.__name__[2:],themeData.__name__)
+			    themeContainer.rename(tempName,themeData.__name__[2:])
+			    performImport = True
+			except (ValueError, KeyError,), e:
+                    	    logger.warn(str(e))
+                    	    self.errors['themeArchive'] = _(
+                            'error_with_rename resource directory to TEMP',
+                            u"The uploaded file does not a valid renaming"
+                            )
+			
+			
+		else:						
+                    themeContainer.importZip(themeZip)
+		    performImport = True
+
+	    if performImport:		
+		themeDirectory = queryResourceDirectory(
                     THEME_RESOURCE_NAME,
                     themeData.__name__
                 )
@@ -301,6 +335,48 @@ class ThemingControlpanel(BrowserView):
                                 ),
                                 'warning',
                             )
+		    if not themeDirectory.isFile(MANIFEST_FILENAME):
+			
+			themePrefix="/++{0:s}++{1:s}".format(
+                        	THEME_RESOURCE_NAME,
+                        	themeData.__name__
+                        	)
+						
+                        data = {
+				'title' : themeData.__name__,
+				'description': 'theme description',
+				'preview' :'preview.png',
+				'rules' : themePrefix + '/rules.xml',
+				'prefix' : themePrefix,
+				'doctype': '<!DOCTYPE html>',
+				'enabled-bundles': '',
+				'disabled-bundles': '',
+				'development-css' : '',
+				'production-css': '',
+				'tinymce-content-css': '',
+				'development-js': '',
+				'production-js': ''
+				}
+			template='[' +THEME_RESOURCE_NAME +']' + '\n'  
+			
+			for key in data:  
+				line=key+"="+data[key]  
+				template=template+line+'\n'  
+									
+                        themeDirectory.writeFile(
+                            MANIFEST_FILENAME,
+                            template
+                        )
+			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
+                            IStatusMessage(self.request).add(
+                                _(
+                                    u"A boilerplate manifest.cfg was added to "
+                                    u"your theme "
+                                    u"Update manifest.cfg to reference "
+                                    u"the bandle files of theme current."
+                                ),
+                                'warning',
+                            )
 
                     plugins = getPlugins()
                     pluginSettings = getPluginSettings(themeDirectory, plugins)
@@ -311,12 +387,13 @@ class ThemingControlpanel(BrowserView):
                                 pluginSettings[name],
                                 pluginSettings
                             )
-
+		
                 if enableNewTheme:
                     applyTheme(themeData)
                     self.theme_settings.enabled = True
 
             if not self.errors:
+		
                 self.redirect(
                     "{0}/++theme++{1}/@@theming-controlpanel-mapper".format(
                         self.site_url,
@@ -485,3 +562,22 @@ class ThemingControlpanel(BrowserView):
 
     def authorize(self):
         return authorize(self.context, self.request)
+
+    """def importZip(self, f, changeDir):
+        if not isinstance(f, zipfile.ZipFile):
+            f = zipfile.ZipFile(f)
+        for name in f.namelist():
+            member = f.getinfo(name)
+            path = member.filename.lstrip('/')
+
+            # test each part of the path against the filters
+            if any(any(filter.match(n) for filter in FILTERS)
+                   for n in path.split('/')
+                   ):
+                continue
+
+            if path.endswith('/'):
+                self.makeDirectory(path)
+            else:
+                data = f.open(member).read()
+                self.writeFile(path, data)"""
