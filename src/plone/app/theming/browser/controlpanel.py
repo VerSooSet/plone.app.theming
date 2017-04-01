@@ -254,23 +254,51 @@ class ThemingControlpanel(BrowserView):
                     themeContainer = getOrCreatePersistentResourceDirectory()
                     themeExists = themeData.__name__ in themeContainer
 
-                    if themeExists:
-                        if not replaceExisting:
-                            self.errors['themeArchive'] = _(
-                                'error_already_installed',
-                                u"This theme is already installed. Select "
-                                u"'Replace existing theme' and re-upload to "
-                                u"replace it."
-                            )
-                        else:
+                if themeExists:
+                        if replaceExisting:
                             del themeContainer[themeData.__name__]
                             performImport = True
-                    else:
-                        performImport = True
+                    	"""Problem is theme resources folder matched with the same folder inside themeZip. 
+			That fix isn't truly right. To be carefully with system disk may made only 
+		        one rename when first copy upload yet. 
+		        Like as 'theme_name --> 0-them_name' and 'counter-them_name' for next copyes.
+			   
+			To do that needs override method importZip of the themeContainer to set on 
+			a new home directory name. It is more code raising issue.
 
-            if performImport:
-                themeContainer.importZip(themeZip)
+			it works now.
 
+			More Info: 
+			about zipfile-- https://docs.python.org/2/library/zipfile.html
+			about importZip -- plone.resources.directory egg
+			"""
+			try:
+			    tempName='temp' #FIXME for place here the best is current time.
+			    themeContainer.rename(themeData.__name__,tempName) 
+			    themeData.__name__ = '1' + '-' + themeData.__name__
+			
+			    existCounter = 1
+			
+			    while (themeData.__name__ in themeContainer):
+				themeData.__name__ = str(existCounter) + themeData.__name__[1:] 
+				existCounter = existCounter + 1
+				if existCounter==9: 
+				   break
+			    themeContainer.importZip(themeZip)
+			    themeContainer.rename(themeData.__name__[2:],themeData.__name__)
+			    themeContainer.rename(tempName,themeData.__name__[2:])
+			    performImport = True
+			except (ValueError, KeyError,), e:
+                    	    logger.warn(str(e))
+                    	    self.errors['themeArchive'] = _(
+                            'error_with_rename resource directory to TEMP',
+                            u"The uploaded file does not a valid renaming"
+                            )
+		else:						
+                    themeContainer.importZip(themeZip)
+		    performImport = True
+
+            if performImport:               
                 themeDirectory = queryResourceDirectory(
                     THEME_RESOURCE_NAME,
                     themeData.__name__
