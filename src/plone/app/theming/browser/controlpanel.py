@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from AccessControl import Unauthorized
+from datetime import datetime
 from plone.app.theming.interfaces import _
 from plone.app.theming.interfaces import DEFAULT_THEME_FILENAME
 from plone.app.theming.interfaces import IThemeSettings
@@ -486,11 +487,13 @@ class ThemingControlpanel(BrowserView):
 	if 'form.button.Rewrite' in form:
 	    self.authorize()
 	    self.updateThemeRewrite()
+	    ThemingControlpanel.showPopupThExist=False
 	    
 
 	if 'form.button.AddCopy' in form:
 	    self.authorize()
 	    self.updateThemeAddCopy()
+	    ThemingControlpanel.showPopupThExist=False
 
         return True
 
@@ -583,22 +586,3 @@ class ThemingControlpanel(BrowserView):
 
     def authorize(self):
         return authorize(self.context, self.request)
-
-    """def importZip(self, f, changeDir):
-        if not isinstance(f, zipfile.ZipFile):
-            f = zipfile.ZipFile(f)
-        for name in f.namelist():
-            member = f.getinfo(name)
-            path = member.filename.lstrip('/')
-
-            # test each part of the path against the filters
-            if any(any(filter.match(n) for filter in FILTERS)
-                   for n in path.split('/')
-                   ):
-                continue
-
-            if path.endswith('/'):
-                self.makeDirectory(path)
-            else:
-                data = f.open(member).read()
-                self.writeFile(path, data)"""
