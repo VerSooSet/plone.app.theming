@@ -60,6 +60,39 @@
       <tal:message tal:content="structure provider:plone.globalstatusmessage"/>
     </aside>
 
+	<!-- ThemeExisted actions choose -->
+<div tal:condition = "view/showPopupThExist"
+	class="plone-btn plone-btn-large plone-btn-primary pat-plone-modal"
+        data-pat-plone-modal="width: 80%">
+	<h1 class="documentFirstHeading" i18n:translate="theming_controlpanel_rewrite_confirm">
+         Theme are exist. Select are action with your theme. 
+         </h1>
+	     <form name="themeExist" method="post">
+             <div class="plone-btn-group">
+             <input
+              type="submit"
+              name="form.button.Rewrite"
+              class="plone-btn plone-btn-danger save"
+              value="Replace existing"
+              i18n:attributes="rewrite"
+              />
+	      <input
+              type="submit"
+              class="plone-btn plone-btn-default cancel"
+              name="form.button.AddCopy"
+              value="Add copy"
+              i18n:attributes="value"
+              />
+              <input
+              type="submit"
+              class="plone-btn plone-btn-default cancel"
+              name="form.button.Cancel"
+              value="Cancel"
+              i18n:attributes="value"
+             />
+      </div>
+  </form>
+</div>
 
     <article id="portal-column-content">
 
@@ -742,20 +775,6 @@
                 <div class="formHelp" i18n:translate="help_enable_new_theme">
                     Select this option to enable the newly uploaded theme
                     immediately.
-                </div>
-            </div>
-
-            <div
-                class="field"
-                tal:define="selected python:request.get('replaceExisting', False)">
-                <input type="hidden" value="" name="replaceExisting:boolean:default" />
-                <input type="checkbox" value="1" name="replaceExisting:boolean" id="replaceExisting"
-                    tal:attributes="checked python:'replaceExisting' if selected else None"
-                    />
-                <label for="replaceExisting" i18n:translate="label_replace_existing">Replace existing theme</label>
-                <div class="formHelp" i18n:translate="help_replace_existing">
-                    Select this option to replace any existing theme that
-                    may have been uploaded previously.
                 </div>
             </div>
 

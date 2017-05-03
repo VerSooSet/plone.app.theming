@@ -44,6 +44,10 @@ def authorize(context, request):
 
 class ThemingControlpanel(BrowserView):
 
+    showPopupThExist=False
+    archive = None
+    checkedEnableTheme = False
+
     @property
     def site_url(self):
         """Return the absolute URL to the current site, which is likely not
@@ -103,6 +107,154 @@ class ThemingControlpanel(BrowserView):
 
     ext_links_open_new_window = property(get_ext_links_open_new_window,
                                          set_ext_links_open_new_window)
+
+    def updateThemeRewrite(self):
+	
+	themeZip = zipfile.ZipFile(ThemingControlpanel.archive)
+	themeData = extractThemeInfo(themeZip, checkRules=False)
+	themeContainer = getOrCreatePersistentResourceDirectory()
+
+	del themeContainer[themeData.__name__]
+	
+	themeContainer.importZip(themeZip)
+        performImport = True
+	self.performImportFiles(performImport, themeData)
+
+    def updateThemeAddCopy(self):
+	
+	themeArchive= ThemingControlpanel.archive
+	themeContainer = getOrCreatePersistentResourceDirectory()
+
+	try:
+            themeZip = zipfile.ZipFile(themeArchive)
+            
+	except (zipfile.BadZipfile, zipfile.LargeZipFile,):
+                logger.exception("Could not read zip file")
+                self.errors['themeArchive'] = _(
+                    'error_invalid_zip',
+                    default=u"The uploaded file is not a valid Zip archive"
+                )
+	themeData = extractThemeInfo(themeZip, checkRules=False)
+	prefix=datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+	themeData.__name__ = prefix + '-' + themeData.__name__ #prefix for copying of theme are possible
+		
+	themeContainer.importZipAsCopy(themeZip, prefix)
+	
+	performImport = True
+	self.performImportFiles(performImport, themeData)
+	
+    def performImportFiles(self, performImport, themeData):
+	
+	if performImport:
+
+		enableNewTheme = ThemingControlpanel.checkedEnableTheme	
+		themeDirectory = queryResourceDirectory(
+                    THEME_RESOURCE_NAME,
+                    themeData.__name__
+                )
+                if themeDirectory is not None:
+                    # If we don't have a rules file, use the template
+                    if themeData.rules == u"/++{0:s}++{1:s}/{2:s}".format(
+                        THEME_RESOURCE_NAME,
+                        themeData.__name__,
+                        RULE_FILENAME,
+                    ) or not themeDirectory.isFile(RULE_FILENAME):
+                        templateThemeDirectory = queryResourceDirectory(
+                            THEME_RESOURCE_NAME,
+                            TEMPLATE_THEME
+                        )
+                        themeDirectory.writeFile(
+                            RULE_FILENAME,
+                            templateThemeDirectory.readFile(RULE_FILENAME)
+                        )
+	
+			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
+                            IStatusMessage(self.request).add(
+                                _(
+                                    u"A boilerplate rules.xml was added to "
+                                    u"your theme, but no index.html file "
+                                    u"found. Update rules.xml to reference "
+                                    u"the current theme file."
+                                ),
+                                'warning',
+                            )
+	
+		    #AddMe. When theme contain manifest need a 'Title' were be different of first theme if copying
+			
+		    if not themeDirectory.isFile(MANIFEST_FILENAME):
+			
+			themePrefix="/++{0:s}++{1:s}".format(
+                        	THEME_RESOURCE_NAME,
+                        	themeData.__name__
+                        	)
+						
+                        data = {
+				'title' : themeData.__name__,
+				'description': 'theme description',
+				'preview' :'preview.png',
+				'rules' : themePrefix + '/rules.xml',
+				'prefix' : themePrefix,
+				'doctype': '<!DOCTYPE html>',
+				'enabled-bundles': '',
+				'disabled-bundles': '',
+				'development-css' : '',
+				'production-css': '',
+				'tinymce-content-css': '',
+				'development-js': '',
+				'production-js': ''
+				}
+			template='[' +THEME_RESOURCE_NAME +']' + '\n'  
+			
+			for key in data:  
+				line=key+"="+data[key]  
+				template=template+line+'\n'  
+									
+                        themeDirectory.writeFile(
+                            MANIFEST_FILENAME,
+                            template
+                        )
+			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
+                            IStatusMessage(self.request).add(
+                                _(
+                                    u"A boilerplate manifest.cfg was added to "
+                                    u"your theme "
+                                    u"Update manifest.cfg to reference "
+                                    u"the bandle files of theme current."
+                                ),
+                                'warning',
+                            )
+
+                    plugins = getPlugins()
+                    pluginSettings = getPluginSettings(themeDirectory, plugins)
+                    if pluginSettings is not None:
+                        for name, plugin in plugins:
+                            plugin.onCreated(
+                                themeData.__name__,
+                                pluginSettings[name],
+                                pluginSettings
+                            )
+		
+                if enableNewTheme:
+                    applyTheme(themeData)
+                    self.theme_settings.enabled = True
+
+            	if not self.errors:
+		
+		        self.redirect(
+		            "{0}/++theme++{1}/@@theming-controlpanel-mapper".format(
+		                self.site_url,
+		                themeData.__name__
+		            )
+		        )
+                return False
+	else:
+                IStatusMessage(self.request).add(
+                    _(u"There were errors"),
+                    "error"
+                )
+
+                self.renderOverlay('upload')
+                return True
 
     def update(self):
         # XXX: complexity too high: refactoring needed
@@ -256,159 +408,19 @@ class ThemingControlpanel(BrowserView):
                     themeExists = themeData.__name__ in themeContainer
 
                 if themeExists:
-                        
-                        if replaceExisting:
-                            del themeContainer[themeData.__name__]
-                            performImport = True
+		   if replaceExisting:
+                      del themeContainer[themeData.__name__]
+                      performImport = True
 
-			"""Problem is theme resources folder matched with the same folder inside themeZip. 
-			That fix isn't truly right. To be carefully with system disk may made only 
-		        one rename when first copy upload yet. 
-		        Like as 'theme_name --> 0-them_name' and 'counter-them_name' for next copyes.
-			   
-			To do that needs override method importZip of the themeContainer to set on 
-			a new home directory name. It is more code raising issue.
-
-			it works now.
-
-			More Info: 
-			module zipfile-- https://docs.python.org/2/library/zipfile.html
-			importZip at egg-- plone.resources.directory
-			"""
+		   ThemingControlpanel.archive = themeArchive
+		   ThemingControlpanel.checkedEnableTheme = enableNewTheme
+		   ThemingControlpanel.showPopupThExist=True
+		   return True
 			
-		     	try:
-			    tempName='temp' #FIXME current time will have there.
-			    themeContainer.rename(themeData.__name__,tempName) 
-			    themeData.__name__ = '1' + '-' + themeData.__name__
-			
-			    existCounter = 1
-			
-			    while (themeData.__name__ in themeContainer):
-				themeData.__name__ = str(existCounter) + themeData.__name__[1:] 
-				existCounter = existCounter + 1
-				if existCounter==9: 
-				   break
-			    themeContainer.importZip(themeZip)
-			    themeContainer.rename(themeData.__name__[2:],themeData.__name__)
-			    themeContainer.rename(tempName,themeData.__name__[2:])
-			    performImport = True
-			except (ValueError, KeyError,), e:
-                    	    logger.warn(str(e))
-                    	    self.errors['themeArchive'] = _(
-                            'error_with_rename resource directory to TEMP',
-                            u"The uploaded file does not a valid renaming"
-                            )
-			
-			
-		else:						
-                    themeContainer.importZip(themeZip)
+		else:	
+		    themeContainer.importZip(themeZip)
 		    performImport = True
-
-	    if performImport:		
-		themeDirectory = queryResourceDirectory(
-                    THEME_RESOURCE_NAME,
-                    themeData.__name__
-                )
-                if themeDirectory is not None:
-                    # If we don't have a rules file, use the template
-                    if themeData.rules == u"/++{0:s}++{1:s}/{2:s}".format(
-                        THEME_RESOURCE_NAME,
-                        themeData.__name__,
-                        RULE_FILENAME,
-                    ) and not themeDirectory.isFile(RULE_FILENAME):
-                        templateThemeDirectory = queryResourceDirectory(
-                            THEME_RESOURCE_NAME,
-                            TEMPLATE_THEME
-                        )
-                        themeDirectory.writeFile(
-                            RULE_FILENAME,
-                            templateThemeDirectory.readFile(RULE_FILENAME)
-                        )
-
-                        if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
-                            IStatusMessage(self.request).add(
-                                _(
-                                    u"A boilerplate rules.xml was added to "
-                                    u"your theme, but no index.html file "
-                                    u"found. Update rules.xml to reference "
-                                    u"the current theme file."
-                                ),
-                                'warning',
-                            )
-		    if not themeDirectory.isFile(MANIFEST_FILENAME):
-			
-			themePrefix="/++{0:s}++{1:s}".format(
-                        	THEME_RESOURCE_NAME,
-                        	themeData.__name__
-                        	)
-						
-                        data = {
-				'title' : themeData.__name__,
-				'description': 'theme description',
-				'preview' :'preview.png',
-				'rules' : themePrefix + '/rules.xml',
-				'prefix' : themePrefix,
-				'doctype': '<!DOCTYPE html>',
-				'enabled-bundles': '',
-				'disabled-bundles': '',
-				'development-css' : '',
-				'production-css': '',
-				'tinymce-content-css': '',
-				'development-js': '',
-				'production-js': ''
-				}
-			template='[' +THEME_RESOURCE_NAME +']' + '\n'  
-			
-			for key in data:  
-				line=key+"="+data[key]  
-				template=template+line+'\n'  
-									
-                        themeDirectory.writeFile(
-                            MANIFEST_FILENAME,
-                            template
-                        )
-			if not themeDirectory.isFile(DEFAULT_THEME_FILENAME):
-                            IStatusMessage(self.request).add(
-                                _(
-                                    u"A boilerplate manifest.cfg was added to "
-                                    u"your theme "
-                                    u"Update manifest.cfg to reference "
-                                    u"the bandle files of theme current."
-                                ),
-                                'warning',
-                            )
-
-                    plugins = getPlugins()
-                    pluginSettings = getPluginSettings(themeDirectory, plugins)
-                    if pluginSettings is not None:
-                        for name, plugin in plugins:
-                            plugin.onCreated(
-                                themeData.__name__,
-                                pluginSettings[name],
-                                pluginSettings
-                            )
-		
-                if enableNewTheme:
-                    applyTheme(themeData)
-                    self.theme_settings.enabled = True
-
-            if not self.errors:
-		
-                self.redirect(
-                    "{0}/++theme++{1}/@@theming-controlpanel-mapper".format(
-                        self.site_url,
-                        themeData.__name__
-                    )
-                )
-                return False
-            else:
-                IStatusMessage(self.request).add(
-                    _(u"There were errors"),
-                    "error"
-                )
-
-                self.renderOverlay('upload')
-                return True
+		    self.performImportFiles(performImport, themeData)
 
         if 'form.button.CreateTheme' in form:
             self.authorize()
@@ -470,6 +482,15 @@ class ThemingControlpanel(BrowserView):
 
             self._setup()
             return True
+
+	if 'form.button.Rewrite' in form:
+	    self.authorize()
+	    self.updateThemeRewrite()
+	    
+
+	if 'form.button.AddCopy' in form:
+	    self.authorize()
+	    self.updateThemeAddCopy()
 
         return True
 
