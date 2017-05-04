@@ -10,7 +10,8 @@ Breaking changes:
 
 New features:
 
-- *add item here*
+- Duplicated zip theme will have a unique theme name if saved
+  [VerSooSet]
 
 Bug fixes:
 
